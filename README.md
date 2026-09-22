@@ -1,2 +1,2 @@
 # pomodoro-python
-Mostly vibe coded python pomodoro tracker
+Pomodoro tracker for personal use
