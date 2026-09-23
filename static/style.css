@@ -1,298 +1,756 @@
-/* ---- palette pulled from the lake pukaki background ---- */
+/*
+ * Built for low vision: large type, solid dark ink (never faded with opacity),
+ * near-opaque panels so the photo can't sit behind text, big hit targets, and
+ * a visible focus ring. Narrow windows (under 4:3) get a square photo crop.
+ */
+
 :root {
-  --lake-deep: #0d5a6e;
-  --lake: #17849f;
-  --slate: #2f4a58;
+  --ink: #0b1a21;          /* primary text */
+  --ink-soft: #1f3540;     /* secondary text — still ~9:1 on the panels */
+  --accent: #0b4f61;       /* timer, primary button, bar fill */
+  --accent-dark: #083a48;
   --snow: #ffffff;
 
-  --hairline: rgba(255, 255, 255, 0.5);
-  --rule: rgba(47, 74, 88, 0.14);
+  --glass: rgba(255, 255, 255, 0.88);
+  --glass-edge: rgba(255, 255, 255, 0.7);
+  --control: #ffffff;
+  --control-edge: rgba(11, 26, 33, 0.35);
+  --rule: rgba(11, 26, 33, 0.18);
+  --track: rgba(11, 26, 33, 0.09);
 
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-/* ---- main page ---- */
+html {
+  font-size: 18px;
+}
+
+/* ---- page + background ---- */
 .page {
   margin: 0;
   min-height: 100vh;
   box-sizing: border-box;
-  padding: 70px 16px;
+  padding: 20px 16px;
 
   display: flex;
   flex-direction: column;
   align-items: center;
 
   font-family: var(--font);
-  color: var(--slate);
+  color: var(--ink);
+  line-height: 1.3;
 
-  /* the image itself is set per-request on <body>; cover + center crops it
-     adaptively, so a half-width window gets a centered portrait crop */
-  background-position: center;
+  /* the photo is set per request on <body> as two custom properties */
+  background-image: var(--bg);
+  /* the wide photos carry a location caption bottom-left; anchoring left
+     keeps it whole and trims the right edge instead of cutting it in half */
+  background-position: left center;
   background-size: cover;
   background-repeat: no-repeat;
   background-attachment: fixed;
 }
 
-/* the two panels sit side by side on a wide window; row wraps to a
-   stacked column once there isn't room */
+/* narrower than 4:3 (a half-screen window, a phone) — use the square crop
+   framed on each photo's subject, never the wide one's edges */
+@media (max-aspect-ratio: 4/3) {
+  .page {
+    background-image: var(--bg-portrait);
+    background-position: center;
+  }
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .layout {
   width: 100%;
   max-width: 1200px;
   display: flex;
-  flex-direction: row;
-  align-items: flex-start;
   justify-content: center;
-  gap: 24px;
+  align-items: flex-start;
+  gap: 28px;
   flex-wrap: wrap;
 }
 
-/* translucent vibrancy panel — the background reads straight through it */
 .panel {
-  width: 100%;
-  max-width: 440px;
   box-sizing: border-box;
-  padding: 34px 36px 28px;
-
   display: flex;
   flex-direction: column;
-  align-items: center;
 
-  background: rgba(255, 255, 255, 0.42);
-  -webkit-backdrop-filter: blur(30px) saturate(180%);
-  backdrop-filter: blur(30px) saturate(180%);
-  border: 1px solid var(--hairline);
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(30px) saturate(160%);
+  backdrop-filter: blur(30px) saturate(160%);
+  border: 1px solid var(--glass-edge);
   border-radius: 18px;
 }
 
-.stats-panel {
-  max-width: 320px;
-  gap: 10px;
-  padding: 22px 36px;
+/* ---- timer / stats switch ---- */
+.switch {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 26px;
+  padding: 5px;
+
+  background: var(--glass);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid var(--glass-edge);
+  border-radius: 12px;
 }
 
-/* ---- the clock ---- */
+.switch a {
+  padding: 9px 26px;
+  border-radius: 8px;
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+
+.switch a:hover {
+  background: rgba(11, 26, 33, 0.07);
+}
+
+.switch a.active {
+  background: var(--accent);
+  color: var(--snow);
+}
+
+/* ================= timer page ================= */
+.home {
+  width: 100%;
+  max-width: 680px;  /* room for the table's stars, AI and on-task columns */
+  padding: 30px 34px 28px;
+  align-items: center;
+}
+
 .timer {
-  font-size: 4rem;
-  font-weight: 300;
-  letter-spacing: 0.01em;
+  font-size: 6.5rem;
+  font-weight: 400;
+  line-height: 1.05;
   font-variant-numeric: tabular-nums;
-  color: var(--lake-deep);
+  color: var(--accent-dark);
 }
 
-/* ---- buttons ---- */
 .controls {
   display: flex;
-  flex-direction: row;
-  gap: 10px;
-  margin-top: 12px;
-  margin-bottom: 26px;
+  gap: 16px;
+  margin: 20px 0 28px;
 }
 
 button {
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: 1.15rem;
   font-weight: 500;
-  letter-spacing: 0.03em;
-
-  padding: 9px 26px;
-  border-radius: 8px;
+  min-height: 52px;
+  padding: 0 34px;
+  border-radius: 10px;
   cursor: pointer;
 
-  color: var(--snow);
-  background: var(--lake);
-  border: 1px solid transparent;
-  transition: background 0.15s ease;
+  color: var(--ink);
+  background: var(--control);
+  border: 2px solid var(--control-edge);
 }
 
 button:hover {
-  background: var(--lake-deep);
+  border-color: var(--ink);
 }
 
-/* stop is quieter — translucent, hairline edge */
-form[action="/stop"] button {
-  color: var(--lake-deep);
-  background: rgba(255, 255, 255, 0.45);
-  border-color: var(--hairline);
+button.primary {
+  color: var(--snow);
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
-form[action="/stop"] button:hover {
-  background: rgba(255, 255, 255, 0.7);
+button.primary:hover {
+  background: var(--accent-dark);
+  border-color: var(--accent-dark);
 }
 
-/* ---- duration picker ---- */
-label {
-  font-size: 0.78rem;
-  font-weight: 400;
-  letter-spacing: 0.02em;
-  color: var(--slate);
-  opacity: 0.8;
+/* the idle clock can be clicked to change the length */
+.timer.editable {
+  cursor: pointer;
+}
+
+.length {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 24px 0;
+  font-size: 1.2rem;
+}
+
+.length input[type="number"] {
+  width: 5rem;
+  font-size: 2rem;
+}
+
+input[type="number"],
+input[type="time"],
+.cell select {
+  font-family: inherit;
+  font-size: 1.1rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  background: var(--control);
+  border: 2px solid var(--control-edge);
+  border-radius: 8px;
 }
 
 input[type="number"] {
-  font-family: inherit;
-  font-size: 0.9rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--slate);
-
   width: 3.6rem;
-  margin: 0 5px;
-  padding: 5px 8px;
-
-  background: rgba(255, 255, 255, 0.5);
-  border: 1px solid var(--hairline);
-  border-radius: 7px;
-  outline: none;
-  transition: background 0.15s ease;
+  padding: 5px 6px;
 }
 
-input[type="number"]:focus {
-  background: rgba(255, 255, 255, 0.8);
+.cell select {
+  padding: 5px 6px;
+  cursor: pointer;
 }
 
-/* ---- bar charts ---- */
-.chart {
+/* ---- today's pomodoros: the table grows and the whole page scrolls;
+   the headings stay pinned to the top of the window ---- */
+.day-table {
   width: 100%;
+  margin-top: 14px;
 }
 
-.chart + .chart {
-  margin-top: 24px;
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 1.1rem;
 }
 
-.chart-header {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.chart-title {
-  font-size: 0.7rem;
+th {
+  position: sticky;
+  top: 0;
+  background: #eef2f3;
+  padding: 10px 12px;
+  font-size: 0.95rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--slate);
-  opacity: 0.6;
+  text-align: left;
+  color: var(--ink-soft);
+  border-bottom: 2px solid var(--rule);
 }
 
-.chart-total {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--lake-deep);
+td {
+  padding: 11px 12px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--rule);
 }
 
-.bars {
+/* the rating stars and the on-task toggle: bare emoji buttons */
+.stars,
+.task {
   display: flex;
-  justify-content: space-between;
-  gap: 6px;
 }
 
-.bar-col {
+.stars button,
+.task button {
+  min-height: 44px;
+  min-width: 36px;
+  padding: 0;
+  font-size: 1.3rem;
+  background: none;
+  border: 2px solid transparent;
+}
+
+.stars button:hover,
+.task button:hover {
+  border-color: var(--control-edge);
+}
+
+/* the delete button only shows on a row that's been clicked (or tabbed into) */
+tr.pomodoro .delete button {
+  opacity: 0;
+}
+
+tr.pomodoro.selected .delete button,
+tr.pomodoro:focus-within .delete button {
+  opacity: 1;
+}
+
+/* overall-quality shading, set per row as --hue (oklch 29 red .. 145 green).
+   oklch keeps lightness and colourfulness fixed, so equal score steps look
+   like equal colour steps: a pale tint behind the text, and a solid stripe
+   down the left like an uptime bar */
+tr.pomodoro td {
+  background: oklch(0.93 0.05 var(--hue));
+}
+
+tr.pomodoro td:first-child {
+  border-left: 10px solid oklch(0.62 0.15 var(--hue));
+}
+
+tr.pomodoro.selected td {
+  box-shadow: inset 0 -3px 0 var(--ink);
+}
+
+/* the "+" row for adding a pomodoro from earlier today */
+.add-row input {
+  padding: 5px 8px;
+}
+
+td.empty {
+  padding: 18px 8px;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
+td:last-child {
+  width: 1%;
+}
+
+.delete button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 0;
+  font-size: 1.2rem;
+  color: var(--ink-soft);
+  background: none;
+  border: 2px solid transparent;
+}
+
+.delete button:hover {
+  color: var(--ink);
+  border-color: var(--control-edge);
+}
+
+/* shown above the summary when the timer page is showing a past day */
+.viewing {
+  margin-bottom: 14px;
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.viewing a {
+  color: var(--accent);
+}
+
+/* ================= history page ================= */
+.history {
+  width: 100%;
+  max-width: 580px;
+  padding: 28px 30px;
+}
+
+.month-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.month-head h2 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.month-head a,
+.month-head span {
+  min-width: 44px;
+  padding: 6px 0;
+  font-size: 1.4rem;
+  text-align: center;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}
+
+.weekday {
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
+.day {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  flex: 1;
+  justify-content: center;
+  min-height: 56px;
+  border-radius: 10px;
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: var(--ink);
+  text-decoration: none;
+  background: var(--control);
+  border: 2px solid var(--control-edge);
 }
 
-.bar-value {
-  font-size: 0.7rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--slate);
-  opacity: 0.75;
+a.day:hover {
+  border-color: var(--ink);
 }
 
-.bar-track {
-  width: 100%;
-  max-width: 22px;
-  height: 70px;
+.day small {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.day.today {
+  border-color: var(--accent);
+  border-width: 3px;
+}
+
+.day.future {
+  background: none;
+  border-color: transparent;
+  color: var(--ink-soft);
+}
+
+/* ================= stats page ================= */
+.stats {
+  flex: 1 1 380px;
+  max-width: 470px;
+  padding: 28px 30px;
+  gap: 36px;
+}
+
+.chart-head {
   display: flex;
-  align-items: flex-end;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 14px;
 }
 
-.bar {
-  width: 100%;
-  min-height: 3px;
-  background: var(--lake);
-  border-radius: 4px 4px 0 0;
+.chart h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
 }
 
-.bar-muted {
-  background: rgba(47, 74, 88, 0.25);
+.chart-total {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--accent-dark);
+}
+
+/* each row's cells sit directly in the grid (.row is display: contents), so
+   labels, bars and numbers line up in columns across every row */
+.rows {
+  display: grid;
+  grid-template-columns: max-content 1fr 2.6rem;
+  align-items: center;
+  column-gap: 14px;
+  row-gap: 12px;
+}
+
+.rows.compare {
+  grid-template-columns: max-content 1fr max-content max-content;  /* vibe values carry an emoji */
+}
+
+.row {
+  display: contents;
+}
+
+.row-label {
+  font-size: 1.05rem;
+  font-weight: 500;
+}
+
+.row-value,
+.row-usual {
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.row-usual {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.column-head {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: right;
+  color: var(--ink-soft);
+  line-height: 1.1;
+}
+
+.row.upcoming .row-label {
+  font-weight: 400;
+  color: var(--ink-soft);
+}
+
+.track {
+  position: relative;
+  height: 22px;
+  border-radius: 5px;
+  background: var(--track);
+}
+
+.fill {
+  height: 100%;
+  border-radius: 5px;
+  background: var(--accent);
+}
+
+/* the "usual" value, as a line across the bar */
+.marker {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 4px;
+  margin-left: -2px;
+  border-radius: 2px;
+  background: var(--ink);
 }
 
 /* categorical slots, fixed order — from the validated reference palette */
 .ai-chat   { background: #2a78d6; }
 .ai-agents { background: #eb6834; }
 .ai-none   { background: #1baf7a; }
-.ai-unset  { background: rgba(47, 74, 88, 0.22); }
+.ai-unset  { background: #8a969c; }
 
-.bar-label {
-  font-size: 0.68rem;
-  color: var(--slate);
-  opacity: 0.55;
+/* ---- quieter table: times on one line, and the row dropdowns only show
+   their box on hover or focus, so the rows read as text, not a wall of boxes ---- */
+td {
+  white-space: nowrap;
+  padding-left: 6px;
+  padding-right: 6px;
 }
 
-/* ---- today's pomodoros ---- */
-table {
-  width: 100%;
-  margin-top: 26px;
-  border-collapse: collapse;
-  font-size: 0.9rem;
+td .cell select {
+  border-color: transparent;
+  background: none;
+}
+
+td .cell select:hover,
+td .cell select:focus-visible {
+  border-color: var(--control-edge);
+  background: var(--control);
+}
+
+.length[hidden] {
+  display: none;  /* .length's display: flex would otherwise beat the hidden attribute */
 }
 
 th {
-  padding: 6px 8px;
-  font-size: 0.7rem;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  text-align: left;
-  color: var(--slate);
-  opacity: 0.6;
-  border-bottom: 1px solid var(--rule);
-}
-
-td {
-  padding: 10px 8px;
-  font-weight: 400;
-  font-variant-numeric: tabular-nums;
-  border-bottom: 1px solid var(--rule);
-}
-
-.cell select {
-  font-family: inherit;
-  font-size: 0.85rem;
-  color: var(--slate);
-
-  padding: 4px 6px;
-  background: rgba(255, 255, 255, 0.5);
-  border: 1px solid var(--hairline);
-  border-radius: 7px;
-  outline: none;
-}
-
-/* delete "x" reads as plain table text, not a button */
-td:last-child {
-  width: 1%;
   white-space: nowrap;
 }
 
-.delete button {
-  font-family: inherit;
-  font-size: 0.9rem;
-  font-weight: 400;
-  color: var(--slate);
-  opacity: 0.45;
 
-  padding: 0;
-  background: none;
-  border: none;
-  border-radius: 0;
-  cursor: pointer;
-  transition: opacity 0.15s ease;
+/* ---- summary, above the clock: the day's plan, then three tiles ---- */
+.summary {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 22px;
 }
 
-.delete button:hover {
-  opacity: 0.9;
-  background: none;
+.plan {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--accent-dark);
+  white-space: nowrap;
+}
+
+.plan label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.to-go {
+  font-size: 1.4rem;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border-radius: 12px;
+  background: var(--control);
+  border: 1px solid var(--rule);
+}
+
+.tile-label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.tile-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.tile-sub {
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+/* on task %, as a filled bar under the number */
+.meter {
+  width: 80%;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--track);
+}
+
+.meter div {
+  height: 100%;
+  border-radius: 4px;
+  background: var(--accent);
+}
+
+/* thesis / work: the project's emoji, then two joined buttons with the
+   day's project filled in */
+.project {
+  display: flex;
+  align-items: center;
+}
+
+.project-emoji {
+  margin-right: 10px;
+  font-size: 1.7rem;
+}
+
+.project button {
+  min-height: 44px;
+  padding: 0 18px;
+  font-size: 1.05rem;
+}
+
+.project button:first-of-type {
+  border-radius: 10px 0 0 10px;
+}
+
+.project button:last-of-type {
+  border-radius: 0 10px 10px 0;
+  border-left: none;
+}
+
+.project button.on {
+  color: var(--snow);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* the little "?" beside a tile's label, which opens its popup */
+.tile-label {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.help {
+  flex: none;
+  min-height: 0;
+  width: 22px;
+  height: 22px;
+  margin-left: 4px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+/* ---- the Workday vibe scoring popup ---- */
+.vibe-dialog {
+  max-width: 440px;
+  padding: 24px 28px;
+  border: none;
+  border-radius: 16px;
+  color: var(--ink);
+  font-family: var(--font);
+}
+
+.vibe-dialog::backdrop {
+  background: rgba(11, 26, 33, 0.45);
+}
+
+.vibe-dialog h2 {
+  margin: 0 0 6px;
+  font-size: 1.3rem;
+}
+
+.vibe-dialog p {
+  margin: 0 0 14px;
+  color: var(--ink-soft);
+}
+
+.vibe-dialog fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  margin: 0 0 14px;
+  padding: 10px 14px 14px;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+}
+
+.vibe-dialog legend {
+  font-weight: 700;
+}
+
+.vibe-dialog label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vibe-dialog input[type="number"] {
+  box-sizing: border-box;  /* so it fits its 4.4rem column in the levels grid */
+  width: 4.4rem;
+}
+
+.dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.dialog-buttons button {
+  padding: 0 20px;
+}
+
+.vibe-dialog .levels {
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* one level per row: name | from | to, lined up in columns */
+.vibe-dialog .level {
+  display: grid;
+  grid-template-columns: 1fr 3.2rem 1.8rem 4.4rem;
+  align-items: center;
+  column-gap: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.vibe-dialog .level > span:not(:first-child) {
+  text-align: right;
 }

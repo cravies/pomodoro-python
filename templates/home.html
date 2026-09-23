@@ -1,0 +1,220 @@
+{% extends 'base.html' %}
+
+{# a dropdown that saves itself in the background — see the script at the bottom #}
+{% macro select_cell(action, field, id, current, options) %}
+<form class="cell" action="{{ action }}" method="post" data-autosave>
+  <input type="hidden" name="id" value="{{ id }}">
+  <select name="{{ field }}">
+    <option value="" {% if current is none %}selected{% endif %} disabled>—</option>
+    {% for option in options %}
+    <option value="{{ option }}" {% if current == option %}selected{% endif %}>{{ option }}</option>
+    {% endfor %}
+  </select>
+</form>
+{% endmacro %}
+
+{% block content %}
+<main class="panel home">
+  {% if not is_today %}
+  <div class="viewing">{{ date_label }} · <a href="/">Back to today</a></div>
+  {% endif %}
+  {# the shown day's project and target, and how it's going; each control
+     saves as soon as it changes #}
+  <div class="summary">
+    {# the day's plan: project and target, with the countdown between #}
+    <div class="plan">
+      <form class="project" id="project" action="/day" method="post" data-autosave data-live>
+        <input type="hidden" name="date" value="{{ date }}">
+        {# the day's project as an emoji, then the thesis / work toggle #}
+        <span class="project-emoji" aria-hidden="true">{{ {'thesis': '👨‍🔬', 'work': '👨‍💼'}.get(day.project, '') }}</span>
+        {% for p in projects %}<button type="submit" name="project" value="{{ p }}" class="{{ 'on' if day.project == p }}" aria-pressed="{{ 'true' if day.project == p else 'false' }}">{{ p }}</button>{% endfor %}
+      </form>
+      <span id="to-go" class="to-go" data-live>{% if to_go %}{{ to_go }} to go{% else %}Target reached{% endif %}</span>
+      <form action="/target" method="post" data-autosave>
+        <input type="hidden" name="date" value="{{ date }}">
+        <label>of <input type="number" name="target" value="{{ day.target }}" min="1" max="50" aria-label="Target"></label>
+      </form>
+    </div>
+    {# how the day is going: one tile each, a dash until there's a pomodoro #}
+    <div class="tiles">
+      <div class="tile" id="locked-in" data-live>
+        <span class="tile-label">Workday vibe
+          <button type="button" class="help" data-opens="vibe-dialog" aria-label="How the workday vibe is scored">?</button></span>
+        {% if locked_in %}
+        <span class="tile-value">{{ locked_in.emoji }} {{ locked_in.label }}</span>
+        <span class="tile-sub">{{ locked_in.score }}</span>
+        {% else %}<span class="tile-value">–</span>{% endif %}
+      </div>
+      <div class="tile" id="on-task" data-live>
+        <span class="tile-label">Completed</span>
+        {% if on_task_percent is not none %}
+        <span class="tile-value">{{ completed }}</span>
+        <span class="tile-sub">{{ on_task_count }}/{{ completed }} on task ({{ on_task_percent }}%)</span>
+        <div class="meter"><div style="width: {{ on_task_percent }}%"></div></div>
+        {% else %}<span class="tile-value">–</span>{% endif %}
+      </div>
+      <div class="tile" id="day-quality" data-live>
+        <span class="tile-label">Mean quality</span>
+        <span class="tile-value">{{ day_quality }}</span>
+      </div>
+    </div>
+  </div>
+
+  {# the Workday vibe popup: how each factor is weighted and scored #}
+  <dialog id="vibe-dialog" class="vibe-dialog">
+    <form action="/vibe" method="post">
+      <h2>Workday vibe scoring</h2>
+      <p>Each pomodoro's vibe is a weighted average of these. Scores are out of 1; quality is stars ÷ 5.</p>
+      <fieldset>
+        <legend>Weights</legend>
+        {% for key, name in [('weight_quality', 'Quality'), ('weight_ai', 'AI use'), ('weight_task', 'On task')] %}
+        <label>{{ name }} <input type="number" name="{{ key }}" value="{{ scoring[key] }}" min="0" max="10" step="0.1"></label>
+        {% endfor %}
+      </fieldset>
+      <fieldset>
+        <legend>AI use scores</legend>
+        {% for key, name in [('ai_none', 'none'), ('ai_chat', 'chat'), ('ai_agents', 'agents')] %}
+        <label>{{ name }} <input type="number" name="{{ key }}" value="{{ scoring[key] }}" min="0" max="1" step="0.05"></label>
+        {% endfor %}
+      </fieldset>
+      <fieldset class="levels">
+        <legend>Levels (vibe from 0 to 1)</legend>
+        {% for l in levels %}
+        <div class="level">
+          <span>{{ l.emoji }} {{ l.name }}</span>
+          <span class="low">{{ '%.2f' % l.low }}</span>
+          <span>to</span>
+          {% if l.cut %}<input type="number" name="{{ l.cut }}" value="{{ '%.2f' % l.high }}" min="0.01" max="0.99" step="0.01" aria-label="Where {{ l.name }} ends">
+          {% else %}<span>1.00</span>{% endif %}
+        </div>
+        {% endfor %}
+      </fieldset>
+      <fieldset>
+        <legend>On task scores</legend>
+        {% for key, name in [('task_on', 'on task'), ('task_off', 'off task')] %}
+        <label>{{ name }} <input type="number" name="{{ key }}" value="{{ scoring[key] }}" min="0" max="1" step="0.05"></label>
+        {% endfor %}
+      </fieldset>
+      <div class="dialog-buttons">
+        <button type="submit" name="reset" value="1" formnovalidate>Reset</button>
+        <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
+        <button type="submit" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  {# click the clock while it's idle to type a new pomodoro length #}
+  <div class="timer{{ ' editable' if not running }}" id="timer" title="{{ 'Click to change the length' if not running }}">{{ remaining }}</div>
+  <form id="length" class="length" action="/length" method="post" hidden>
+    <input type="number" name="minutes" value="{{ pomodoro_length }}" min="1" max="60" aria-label="Pomodoro length in minutes">
+    <span>minutes</span>
+  </form>
+  <div class="controls">
+    <form id="start" action="/start" method="post">
+      <button type="submit" class="primary">Start</button>
+    </form>
+    <form action="/stop" method="post"><button type="submit">Stop</button></form>
+  </div>
+
+  {# the add row's inputs sit in table cells, so they join this form by id #}
+  <form id="add" action="/add" method="post"><input type="hidden" name="date" value="{{ date }}"></form>
+  <div class="day-table">
+    <table>
+      <thead>
+        <tr><th>Time</th><th>Quality</th><th>AI</th><th>On task</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for p in pomodoros %}
+        {# shaded red to green by how locked in it was: AI use and on task, equally #}
+        <tr class="pomodoro" id="p-{{ p.id }}" style="--hue: {{ p.hue }}" data-live>
+          <td>{{ p.time }}</td>
+          <td>
+            {# five star buttons; clicking the nth saves a rating of n #}
+            <form class="stars" action="/rate" method="post" data-autosave>
+              <input type="hidden" name="id" value="{{ p.id }}">
+              {% for n in range(1, 6) %}<button type="submit" name="quality" value="{{ n }}" aria-label="{{ n }} stars">{{ '⭐' if p.quality and n <= p.quality else '☆' }}</button>{% endfor %}
+            </form>
+          </td>
+          <td>{{ select_cell('/ai', 'ai_usage', p.id, p.ai_usage, ai_options) }}</td>
+          <td>
+            {# one toggle: on task until clicked; the button sends the opposite #}
+            <form class="task" action="/task" method="post" data-autosave>
+              <input type="hidden" name="id" value="{{ p.id }}">
+              <button type="submit" name="on_task" value="{{ 'yes' if p.task == 'no' else 'no' }}"
+                      aria-label="{{ 'Off task' if p.task == 'no' else 'On task' }} (click to change)">{{ '❌' if p.task == 'no' else '✅' }}</button>
+            </form>
+          </td>
+          <td>
+            <form class="delete" action="/delete" method="post" onsubmit="return confirm('Delete this pomodoro?')">
+              <input type="hidden" name="id" value="{{ p.id }}">
+              <button type="submit" aria-label="Delete" title="Delete">✕</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td class="empty" colspan="5">{{ 'No pomodoros yet today' if is_today else 'No pomodoros this day' }}</td></tr>
+        {% endfor %}
+        <tr class="add-row">
+          <td colspan="4">
+            <input type="time" name="time" form="add" value="{{ now }}" {% if is_today %}max="{{ now }}"{% endif %} required
+                   aria-label="Start time of a pomodoro to add">
+          </td>
+          <td class="delete">
+            <button type="submit" form="add" aria-label="Add pomodoro" title="Add pomodoro">+</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <script>
+    // save a changed dropdown, or a clicked star or on-task button, without
+    // reloading. The server answers with the page itself, and every [data-live]
+    // element (the rows, to go, on task %, stars) is swapped in from it. If a
+    // save fails, reload to show what was really saved. Listeners sit on the
+    // document, so rows swapped in this way keep working.
+    async function save(form, submitter) {
+      try {
+        const response = await fetch(form.action, {method: 'POST', body: new FormData(form, submitter)});
+        if (!response.ok) throw new Error(response.status);
+        const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+        document.querySelectorAll('[data-live]').forEach(el => el.replaceWith(page.getElementById(el.id)));
+      } catch {
+        location.reload();
+      }
+    }
+    document.addEventListener('change', event => {
+      const form = event.target.closest('form[data-autosave]');
+      if (form) save(form);
+    });
+    document.addEventListener('submit', event => {
+      const form = event.target.closest('form[data-autosave]');
+      if (form) { event.preventDefault(); save(form, event.submitter); }
+    });
+
+    // click a row to show its delete button; click it again to hide it.
+    // a "?" button opens the popup it names
+    document.addEventListener('click', event => {
+      const help = event.target.closest('[data-opens]');
+      if (help) document.getElementById(help.dataset.opens).showModal();
+      const row = event.target.closest('tr.pomodoro');
+      if (row && !event.target.closest('button, select, input')) row.classList.toggle('selected');
+    });
+
+    // click the idle clock to swap it for the length box; Enter saves, leaving it cancels
+    const clock = document.getElementById('timer'), length = document.getElementById('length');
+    clock.addEventListener('click', () => {
+      if (!clock.classList.contains('editable')) return;
+      clock.hidden = true;
+      length.hidden = false;
+      length.minutes.select();
+    });
+    // as a level's end is typed, the next level's start follows it
+    document.querySelector('.levels').addEventListener('input', event => {
+      const next = event.target.closest('.level').nextElementSibling;
+      const value = parseFloat(event.target.value);
+      if (next && !isNaN(value)) next.querySelector('.low').textContent = value.toFixed(2);
+    });
+    length.minutes.addEventListener('blur', () => { length.hidden = true; clock.hidden = false; });
+  </script>
+</main>
+{% endblock %}

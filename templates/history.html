@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<main class="panel history">
+  <div class="month-head">
+    <a href="/history?month={{ previous }}" aria-label="Previous month">←</a>
+    <h2>{{ month_label }}</h2>
+    {% if following %}<a href="/history?month={{ following }}" aria-label="Next month">→</a>{% else %}<span></span>{% endif %}
+  </div>
+  {# each past day links to the timer page showing that day; the small number
+     under the date is how many pomodoros it had #}
+  <div class="calendar">
+    {% for label in day_labels %}<span class="weekday">{{ label }}</span>{% endfor %}
+    {% for week in weeks %}{% for d in week %}
+      {% if d.month != month %}
+      <span></span>
+      {% elif d > today %}
+      <span class="day future">{{ d.day }}</span>
+      {% else %}
+      <a class="day{{ ' today' if d == today }}" href="{{ '/' if d == today else '/?date=' ~ d.isoformat() }}">
+        {{ d.day }}<small>{{ counts[d] or '' }}</small>
+      </a>
+      {% endif %}
+    {% endfor %}{% endfor %}
+  </div>
+</main>
+{% endblock %}

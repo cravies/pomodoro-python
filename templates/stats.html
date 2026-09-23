@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+
+{# Horizontal bars: big labels on the left, the number written out on the
+   right, so nothing has to be read off an axis. Compare rows add a "usual"
+   column and a marker line on the bar at the usual value. #}
+{% macro chart(title, rows, total=none) %}
+{% set compare = rows[0].usual is not none %}
+<section class="chart">
+  <div class="chart-head">
+    <h2>{{ title }}</h2>
+    {% if total is not none %}<span class="chart-total">{{ total }}</span>{% endif %}
+  </div>
+  <div class="rows{{ ' compare' if compare }}">
+    {% if compare %}
+    <span></span><span></span>
+    <span class="column-head">this week</span><span class="column-head">usual</span>
+    {% endif %}
+    {% for row in rows %}
+    <div class="row{{ ' upcoming' if row.upcoming }}">
+      <span class="row-label">{{ row.label }}</span>
+      <div class="track">
+        <div class="fill {{ row.colour }}" style="width: {{ row.fill_pct }}%"></div>
+        {% if row.usual_pct is not none %}<div class="marker" style="left: {{ row.usual_pct }}%"></div>{% endif %}
+      </div>
+      <span class="row-value">{{ row.value }}</span>
+      {% if compare %}<span class="row-usual">{{ row.usual }}</span>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endmacro %}
+
+{% block content %}
+<div class="panel stats">
+  {{ chart('Pomodoros per day', count_rows, total=week_total ~ ' this week') }}
+  {{ chart('Quality per day', quality_rows) }}
+  {{ chart('On task per day', on_task_rows) }}
+  {{ chart('Workday vibe per day', vibe_rows) }}
+</div>
+<div class="panel stats">
+  {{ chart('AI use today', today_ai_rows) }}
+  {{ chart('AI use, all time', all_time_ai_rows) }}
+  {{ chart('Off task by AI use, all time', off_task_ai_rows) }}
+  {{ chart('Quality by AI use', quality_ai_rows) }}
+</div>
+{% endblock %}

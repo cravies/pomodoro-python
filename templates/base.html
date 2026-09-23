@@ -1,0 +1,31 @@
+<!doctype html>
+<html>
+<head>
+  <title>pomo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+{# both crops of the same photo; the stylesheet picks one by window shape #}
+<body class="page" style="--bg: url('/static/backgrounds/{{ background }}'); --bg-portrait: url('/static/portrait/{{ background }}')">
+  <nav class="switch">
+    <a href="/" class="{{ 'active' if active == 'timer' }}">Timer</a>
+    <a href="/history" class="{{ 'active' if active == 'history' }}">History</a>
+    <a href="/stats" class="{{ 'active' if active == 'stats' }}">Stats</a>
+  </nav>
+  <div class="layout">
+    {% block content %}{% endblock %}
+  </div>
+
+  <script>
+    // polls once a second on every page — that poll is what notices a finished
+    // pomodoro, so it runs even on stats. On finish it reloads without ?date=,
+    // so the timer page lands on today, where the new row is.
+    setInterval(async () => {
+      const state = await fetch('/state', {cache: 'no-store'}).then(r => r.json());
+      const timer = document.getElementById('timer');
+      if (timer) timer.textContent = state.remaining;
+      if (state.finished) location.href = location.pathname;
+    }, 1000);
+  </script>
+</body>
+</html>

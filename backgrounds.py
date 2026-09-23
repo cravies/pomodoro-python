@@ -1,12 +1,16 @@
-import os
+from pathlib import Path
 
-BACKGROUND_DIR = os.path.join('static', 'backgrounds')
+# Rotates through static/backgrounds, one step per finished pomodoro. Each wide
+# photo has a same-named square crop in static/portrait for narrow windows.
+
+BACKGROUND_DIR = Path(__file__).parent / 'static' / 'backgrounds'
 
 _index = 0
 
 
 def _filenames():
-    return sorted(os.listdir(BACKGROUND_DIR))
+    # read on every call, so adding or removing images needs no restart
+    return sorted(p.name for p in BACKGROUND_DIR.iterdir() if p.is_file())
 
 
 def current():
