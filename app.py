@@ -27,12 +27,29 @@ def same_site_posts_only():
 @app.before_request
 def load_scoring():
     utils.scoring = database.get_scoring()
+    timer.lengths = {mode: database.get_setting(f'{mode}_length') for mode in timer.MODES}
+    timer.long_break_interval = database.get_setting('long_break_interval')
+
+
+# what each mode is called on its tab, what the browser tab says, and its tab
+# icon, which like pomofocus's turns grey (a pause sign) while paused
+MODE_NAMES = {'pomodoro': 'Pomodoro', 'short_break': 'Short Break', 'long_break': 'Long Break'}
+MODE_EMOJI = {'pomodoro': '🍅', 'short_break': '☕', 'long_break': '🌴', 'paused': '⏸️'}
+
+
+def clock_state():
+    clock = timer.state()
+    clock['message'] = 'Time to focus!' if clock['mode'] == 'pomodoro' else 'Time for a break!'
+    clock['title'] = f"{clock['remaining']} - {clock['message']}"
+    clock['emoji'] = MODE_EMOJI['paused' if clock['paused'] else clock['mode']]
+    return clock
 
 
 @app.context_processor
 def shared():
-    # every page draws the current background
-    return {'background': backgrounds.current()}
+    # every page draws the current background, and takes its colours and tab
+    # title from the timer
+    return {'background': backgrounds.current(), 'clock': clock_state()}
 
 
 @app.route('/')
@@ -65,12 +82,11 @@ def home():
         locked_in=utils.day_locked_in(shown),
         scoring=utils.scoring,
         levels=utils.levels(),
-        running=timer.running(),
-        remaining=timer.remaining_str(database.get_setting('pomodoro_length')),
-        pomodoro_length=database.get_setting('pomodoro_length'),
+        modes=MODE_NAMES,
+        mode_length=timer.lengths[timer.state()['mode']],
         now=datetime.datetime.now().strftime('%H:%M'),
         pomodoros=shown,
-        ai_options=utils.AI_OPTIONS,
+        ai_options={option: utils.AI_LABELS[option] for option in utils.AI_OPTIONS},
     )
 
 
@@ -134,47 +150,64 @@ def history():
 
 @app.route('/state')
 def state():
-    """Polled once a second by every page. It's also where a finished pomodoro
-    gets noticed and written — nothing ticks in the background."""
+    """Polled once a second by every page. It's also where a round that ran
+    out gets noticed, the next one started, and a finished pomodoro written —
+    nothing ticks in the background."""
     done = timer.check_done()
-    if done:
+    if done and done['mode'] == 'pomodoro':
         ended = done['started_at'] + datetime.timedelta(minutes=done['length'])
         database.insert_pomodoro(done['started_at'], done['length'], ended, completed=True)
         backgrounds.next_background()
-    return {
-        'remaining': timer.remaining_str(database.get_setting('pomodoro_length')),
-        'finished': done is not None,  # the page reloads to show the new row
-    }
+    clock = clock_state()
+    # a new version tells the page to swap in the new round; finished means a
+    # pomodoro was just written, so a page showing another day goes to today
+    return {**clock, 'finished': bool(done) and done['mode'] == 'pomodoro'}
 
 
 @app.route('/start', methods=['POST'])
 def start():
-    minutes = min(max(request.form.get('minutes', database.get_setting('pomodoro_length'), type=int), 1), 60)
-    database.set_setting('pomodoro_length', minutes)
-    stop_running()
-    timer.start(minutes)
+    timer.start()
+    return back()
+
+
+@app.route('/pause', methods=['POST'])
+def pause():
+    timer.pause()
+    return back()
+
+
+@app.route('/skip', methods=['POST'])
+def skip():
+    """Finish the round early and go on to the next. A pomodoro cut short is
+    kept, as not completed."""
+    record_stopped(timer.skip())
+    return back()
+
+
+@app.route('/mode', methods=['POST'])
+def set_mode():
+    """A mode tab: stop wherever the timer is and wait at the start of that
+    mode — the tab it's already on resets it. A pomodoro under way is kept,
+    as not completed."""
+    mode = request.form.get('mode')
+    if mode not in timer.MODES:
+        abort(400)
+    record_stopped(timer.switch(mode))
     return back()
 
 
 @app.route('/length', methods=['POST'])
 def set_length():
-    """The next pomodoro's length, typed into the idle clock."""
+    """The length of a mode, typed into its idle clock."""
+    mode = request.form.get('mode')
     minutes = form_int('minutes')
-    if not 1 <= minutes <= 60:
+    if mode not in timer.MODES or not 1 <= minutes <= 60:
         abort(400)
-    database.set_setting('pomodoro_length', minutes)
+    database.set_setting(f'{mode}_length', minutes)
     return back()
 
 
-@app.route('/stop', methods=['POST'])
-def stop():
-    stop_running()
-    return back()
-
-
-def stop_running():
-    """Stop the running pomodoro, if any. It's kept, as not completed."""
-    stopped = timer.stop()
+def record_stopped(stopped):
     if stopped:
         database.insert_pomodoro(
             stopped['started_at'], stopped['length'], datetime.datetime.now(), completed=False)

@@ -1,7 +1,12 @@
 DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-AI_OPTIONS = ['chat', 'agents', 'none']  # what you can pick on a pomodoro
+# what you can pick on a pomodoro. Agentic engineering is agents used read
+# only, as a devops / syntax helper beside the editor, with the code written
+# by hand; vibe coding is agents writing the code.
+AI_OPTIONS = ['chat', 'agentic_engineering', 'vibe_coding', 'none']
 # fixed colour order; 'unset' is the bucket for rows where it was never recorded
 AI_CATEGORIES = AI_OPTIONS + ['unset']
+AI_LABELS = {'chat': '💬 chat', 'agentic_engineering': '🛠️ agentic engineering', 'vibe_coding': '🤡 vibe coding',
+             'none': '🧠 none', 'unset': 'unset'}
 
 
 def format_time(dt):
@@ -57,7 +62,7 @@ def quality_by_ai(rows):
 # each option's score out of 1 (quality is always stars / 5).
 DEFAULT_SCORING = {
     'weight_quality': 1.0, 'weight_ai': 1.0, 'weight_task': 1.0,
-    'ai_none': 1.0, 'ai_chat': 0.6, 'ai_agents': 0.2,
+    'ai_none': 1.0, 'ai_chat': 0.6, 'ai_agentic_engineering': 0.6, 'ai_vibe_coding': 0.2,
     'task_on': 1.0, 'task_off': 0.5,
     # where each level ends on the 0..1 vibe scale; heroic runs from cut_4 to 1
     'cut_1': 0.2, 'cut_2': 0.4, 'cut_3': 0.6, 'cut_4': 0.8,
@@ -91,7 +96,7 @@ def locked_in_scaled(row):
     """locked_in() stretched onto 0..1, from the worst possible mix of scores
     to the best, for colours and labels."""
     s = scoring
-    ai = [s['ai_none'], s['ai_chat'], s['ai_agents']]
+    ai = [s['ai_' + option] for option in AI_OPTIONS]
     task = [s['task_on'], s['task_off']]
     weights = (s['weight_quality'], s['weight_ai'], s['weight_task'])
     worst = _weighted(list(zip(weights, (0.2, min(ai), min(task)))))
@@ -187,7 +192,7 @@ def category_rows(values, scale=None, zero_means_no_data=False):
     scale = scale or max(values)
     return [
         {
-            'label': category,
+            'label': AI_LABELS[category],
             'value': '–' if zero_means_no_data and value == 0 else _format_value(value),
             'fill_pct': _percent(value, scale),
             'usual': None,

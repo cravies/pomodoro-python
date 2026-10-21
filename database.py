@@ -2,12 +2,16 @@ import datetime
 import json
 import shutil
 import sqlite3
+import sys
 from pathlib import Path
 
-# next to this file, not wherever the server happened to be launched from
-DB_PATH = Path(__file__).parent / 'pomo.db'
+# next to this file, not wherever the server happened to be launched from —
+# or, in the built Pomo.exe, next to the exe (its own files are unpacked to a
+# temporary folder that's deleted on exit)
+DB_PATH = Path(sys.executable if getattr(sys, 'frozen', False) else __file__).parent / 'pomo.db'
 
-DEFAULTS = {'target': 10, 'pomodoro_length': 25}
+DEFAULTS = {'target': 10, 'pomodoro_length': 25, 'short_break_length': 5, 'long_break_length': 15,
+            'long_break_interval': 4}
 DAY_FIELDS = ('target', 'project')  # the columns set_day() may change
 
 
@@ -40,7 +44,7 @@ def _create_tables(conn):
             length      integer not null,  -- planned minutes
             completed   integer not null,  -- 1 = ran to the end, 0 = stopped early
             quality     integer,           -- 1-5
-            ai_usage    text,              -- chat / agents / none
+            ai_usage    text,              -- chat / agentic_engineering / vibe_coding / none
             on_task     integer            -- 1 = on task, 0 = off task (yak shaving)
         )
     """)
@@ -57,6 +61,8 @@ def init():
         columns = [c['name'] for c in conn.execute("pragma table_info(pomodoro)")]
         if 'on_task' not in columns:  # added after the day table
             conn.execute("alter table pomodoro add column on_task integer")
+        # 'agents' was split in two; everything logged before then was vibe coding
+        conn.execute("update pomodoro set ai_usage = 'vibe_coding' where ai_usage = 'agents'")
 
 
 def _migrate_from_single_timestamp():
