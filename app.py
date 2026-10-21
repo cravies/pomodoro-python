@@ -148,16 +148,29 @@ def history():
     )
 
 
-@app.route('/state')
-def state():
-    """Polled once a second by every page. It's also where a round that ran
-    out gets noticed, the next one started, and a finished pomodoro written —
-    nothing ticks in the background."""
+# called with the round that just ran out; the desktop app sets it to show
+# its popup
+on_round_end = None
+
+
+def advance():
+    """Notice a round that ran out, start the next, and write a finished
+    pomodoro. Returns the round that ended, or None. Called by every /state
+    poll, and every second by the desktop app, whose page may be minimized."""
     done = timer.check_done()
     if done and done['mode'] == 'pomodoro':
         ended = done['started_at'] + datetime.timedelta(minutes=done['length'])
         database.insert_pomodoro(done['started_at'], done['length'], ended, completed=True)
         backgrounds.next_background()
+    if done and on_round_end:
+        on_round_end(done)
+    return done
+
+
+@app.route('/state')
+def state():
+    """Polled once a second by every page."""
+    done = advance()
     clock = clock_state()
     # a new version tells the page to swap in the new round; finished means a
     # pomodoro was just written, so a page showing another day goes to today

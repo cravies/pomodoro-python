@@ -5,8 +5,9 @@ import time
 
 # The single timer, cycling the way pomofocus.io does: a pomodoro, then a
 # short break (a long one after every long_break_interval-th pomodoro), then
-# the next pomodoro, each starting on its own as the last one runs out. Lives
-# in memory only, so a server restart drops the round in progress.
+# the next pomodoro. As one runs out the next is lined up, waiting at its full
+# length until you start it. Lives in memory only, so a server restart drops
+# the round in progress.
 
 MODES = ('pomodoro', 'short_break', 'long_break')
 
@@ -51,8 +52,9 @@ def pause():
 
 
 def skip():
-    """End the running round early and start the next, as if it had run out.
-    Returns the pomodoro it cut short, or None for a break (or when not running)."""
+    """End the running round early and line up the next, as if it had run
+    out. Returns the pomodoro it cut short, or None for a break (or when not
+    running)."""
     with _lock:
         if _deadline is None:
             return None
@@ -75,7 +77,7 @@ def switch(mode):
 
 def check_done():
     """The round that just ran out, the first time (and only the first time)
-    its deadline has passed, with the next round already started; None
+    its deadline has passed, with the next round lined up; None
     otherwise. Locked so two polls landing together can't both record it."""
     with _lock:
         if _deadline is None or time.monotonic() < _deadline:
@@ -84,15 +86,15 @@ def check_done():
 
 
 def _next_round():
-    """Move on to the next mode and start it running; return the round that ended."""
-    global _mode, _count, _version
+    """Move on to the next mode, waiting to be started; return the round that ended."""
+    global _mode, _count, _version, _deadline, _left, _started_at, _length
     ended = _round()
     if _mode == 'pomodoro':
         _count = _today_count() + 1
         _mode = 'long_break' if _count % long_break_interval == 0 else 'short_break'
     else:
         _mode = 'pomodoro'
-    _begin()
+    _deadline = _left = _started_at = _length = None
     _version += 1
     return ended
 

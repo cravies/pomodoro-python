@@ -23,18 +23,21 @@ def test_idle_shows_the_modes_full_length(clock):
     assert timer.check_done() is None
 
 
-def test_a_pomodoro_rolls_into_a_break_and_back_on_its_own(clock):
+def test_a_pomodoro_lines_up_a_break_and_back_but_waits_to_start_them(clock):
     timer.start()
     clock(25 * 60)
     done = timer.check_done()
     assert done['mode'] == 'pomodoro' and done['length'] == 25
     assert timer.check_done() is None  # recorded once only
     state = timer.state()
-    assert (state['mode'], state['running'], state['remaining']) == ('short_break', True, '05:00')
+    assert (state['mode'], state['running'], state['paused'], state['remaining']) == ('short_break', False, False, '05:00')
+    clock(60 * 60)
+    assert timer.check_done() is None  # still waiting
+    timer.start()
     clock(5 * 60)
     assert timer.check_done()['mode'] == 'short_break'
     state = timer.state()
-    assert (state['mode'], state['running']) == ('pomodoro', True)
+    assert (state['mode'], state['running']) == ('pomodoro', False)
 
 
 def test_every_fourth_pomodoro_is_followed_by_a_long_break(clock):
@@ -44,8 +47,10 @@ def test_every_fourth_pomodoro_is_followed_by_a_long_break(clock):
         clock(25 * 60)
         timer.check_done()
         breaks.append(timer.state()['mode'])
+        timer.start()
         clock(timer.lengths[breaks[-1]] * 60)
         timer.check_done()
+        timer.start()
     assert breaks == ['short_break'] * 3 + ['long_break'] + ['short_break'] * 3 + ['long_break']
 
 
@@ -67,7 +72,8 @@ def test_skip_ends_a_pomodoro_early_and_counts_it(clock):
     cut = timer.skip()
     assert cut['mode'] == 'pomodoro'
     state = timer.state()
-    assert (state['mode'], state['running']) == ('short_break', True)
+    assert (state['mode'], state['running']) == ('short_break', False)
+    timer.start()
     assert timer.skip() is None  # skipping a break records nothing
     assert timer.state()['mode'] == 'pomodoro'
 
